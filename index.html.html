@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GRAPES Search+ — Chat (Link-Enrichment)</title>
+<style>
+:root{ --ucla-blue:#2774AE; --ucla-gold:#FFD100; --ink:#111; --muted:#5f6368; --bg:#2774AE; --line:#e6e6e6; --card:#ffffff; --user:#eaf3ff; --bot:#ffffff; --focus:#0b6fff; }
+*{box-sizing:border-box} html,body{margin:0;height:100%}
+body{font:16px/1.5 "Helvetica Neue", Helvetica, Arial, sans-serif;color:var(--ink);background:var(--bg);}
+.surface{ max-width:1080px; margin:18px auto 28px; padding:0 16px; }
+.card{ background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 4px 18px rgba(0,0,0,.15); overflow:hidden; }
+.header{ background:linear-gradient(180deg,#2b7dbb,#2774AE); color:#fff; padding:14px 16px; display:flex;align-items:center;justify-content:space-between;gap:12px; }
+.header h1{margin:0;font-size:20px;font-weight:800;letter-spacing:.2px}
+.header .plus{color:var(--ucla-gold)}
+.updated{opacity:.9;font-size:13px}
+.chatbox{display:flex;flex-direction:column;min-height:72vh;background:#fff}
+.msgs{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.msg{max-width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line)}
+.user{align-self:flex-end;background:var(--user);border-color:#d7e6ff}
+.bot{align-self:flex-start;background:var(--bot)}
+.result{margin:8px 0 0 0;padding:10px 12px;border-left:3px solid var(--ucla-blue);background:#f8fbff;border-radius:8px}
+.small{font-size:13px;color:var(--muted)}
+a{color:#0b57d0;text-decoration:none} a:hover{text-decoration:underline}
+.input{display:flex;gap:10px;align-items:flex-end;padding:12px;border-top:1px solid var(--line);background:#fff}
+textarea{flex:1;resize:none;min-height:48px;max-height:160px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:16px/1.5 "Helvetica Neue", Helvetica, Arial, sans-serif}
+textarea:focus{border-color:var(--focus);box-shadow:0 0 0 3px rgba(11,111,255,.15)}
+.btn{background:#1f5f94;color:#fff;border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer}
+.btn:focus{outline:2px solid var(--focus);outline-offset:2px}
+
+.result-card{border:1px solid var(--line);background:#fff;border-radius:12px;padding:14px;margin:8px 0}
+.result-title{font-weight:800;margin:0 0 4px 0}
+.result-meta{font-size:13px;color:#4d5562;margin:0 0 6px 0}
+.badge{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:2px 8px;font-size:12px;margin-right:6px}
+.url-tools{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap}
+.url-tools input{flex:1;min-width:220px;border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.url-tools button{background:#246; color:#fff; border:0; border-radius:8px; padding:6px 10px; cursor:pointer}
+.url-tools a.quick{font-size:13px}
+.chip{display:inline-block;border:1px solid var(--line);border-radius:9999px;padding:4px 10px;margin:6px 6px 0 0;background:#fff;cursor:pointer}
+.chip:hover{background:#f5f5f5}
+</style>
+</head>
+<body>
+  <div class="surface">
+    <div class="card">
+      <div class="header">
+        <h1>GRAPES Search<span class="plus">+</span> — Chat</h1>
+        <div class="updated">Data updated: <span id="updated">—</span></div>
+      </div>
+      <div class="chatbox" role="region" aria-label="GRAPES Search+ chat">
+        <div id="msgs" class="msgs"></div>
+        <div class="input">
+          <textarea id="inp" placeholder="e.g., I’m a 4th-year PhD in cognitive psychology (US) looking for dissertation or travel funding this fall."></textarea>
+          <button id="send" class="btn">Send</button>
+        </div>
+      </div>
+    </div>
+    <p class="small" style="color:#fff;opacity:.9;margin:10px 4px 0;">Results are summaries—please verify details on the official page.</p>
+    <p class="small" style="text-align:center;margin-top:8px;color:#fff;opacity:.85;">Created by Daylor Williams • Aug 2025</p>
+  </div>
+
+<script>
+/* =========================
+   Helpers + localStorage URL vault
+   ========================= */
+const FMT = (v,fallback="—") => (v===null||v===undefined||String(v).trim()==="") ? fallback : String(v).trim();
+const DATE_FMT = (iso) => {
+  if(!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString(undefined, {year:'numeric', month:'short', day:'2-digit'});
+};
+const STORAGE_KEY = "grapes_url_overrides_v1";
+function loadOverrides(){
+  try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}"); }catch(e){ return {}; }
+}
+function saveOverride(key, url){
+  const vault = loadOverrides();
+  vault[key] = url;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(vault));
+}
+function stableKey(item){
+  // prefer Record Number if present; else title hash
+  if (item.id) return "id:"+item.id;
+  return "t:"+btoa(unescape(encodeURIComponent((item.title||"")+ "||" +(item.sponsor||"")))).slice(0,32);
+}
+
+/* =========================
+   Mapping
+   ========================= */
+function val(obj, candidates) {
+  for (const key of candidates) {
+    if (obj[key] != null && String(obj[key]).trim() !== "") return String(obj[key]).trim();
+    const found = Object.keys(obj).find(k => k.toLowerCase() === key.toLowerCase());
+    if (found && obj[found] != null && String(obj[found]).trim() !== "") return String(obj[found]).trim();
+  }
+  return null;
+}
+function toISO(d) {
+  if (!d) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(d))) return d;
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return null;
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth()+1).padStart(2,'0');
+  const day = String(dt.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function mapRow(row) {
+  const title   = val(row, ["Award Title", "Title"]);
+  const sponsor = [val(row, ["Agency 1"]), val(row, ["Agency 2"])].filter(Boolean).join(" • ") || null;
+  const deadlineRaw = val(row, ["DEADLINE", "Deadline", "Due Date"]);
+  const url     = val(row, ["URL", "Web URL", "Link", "Website"]); // optional
+  const notes   = val(row, ["Notes", "Description", "Overview"]);
+  const lastUpd = val(row, ["last_updated", "Last Updated", "Updated", "Update Date"]);
+  const period  = val(row, ["APPLICATION PERIOD", "Application Period", "Cycle"]);
+  const id      = val(row, ["Record Number", "ID"]) || null;
+
+  return {
+    id, title, sponsor,
+    deadline: toISO(deadlineRaw),
+    url, notes, last_updated: lastUpd, period
+  };
+}
+
+/* =========================
+   Minimal search & render
+   ========================= */
+const $ = (s)=>document.querySelector(s);
+let DATA = [];
+function keywordMatch(item, qwords){
+  const hay = [
+    item.title||"", item.sponsor||"", item.notes||"", item.period||""
+  ].join(" ").toLowerCase();
+  return qwords.every(w => hay.includes(w));
+}
+function safeUrl(u){
+  try{
+    const url = new URL(u);
+    return url.protocol === "http:" || url.protocol === "https:";
+  }catch(e){ return false; }
+}
+function renderResults(items, queryText){
+  const box = $("#msgs");
+  const user = document.createElement("div");
+  user.className = "msg user";
+  user.textContent = queryText || "(Show Fall)";
+  box.appendChild(user);
+
+  const wrap = document.createElement("div");
+  wrap.className = "msg bot";
+  const header = document.createElement("div");
+  header.innerHTML = `<strong>${items.length}</strong> matching result${items.length===1?"":"s"}`;
+  wrap.appendChild(header);
+
+  const overrides = loadOverrides();
+
+  items.slice(0, 100).forEach(it => {
+    const card = document.createElement("div");
+    card.className = "result-card";
+
+    // apply override if present
+    const key = stableKey(it);
+    const url = overrides[key] || it.url || null;
+
+    const titleEl = document.createElement(url ? "a" : "div");
+    if (url) {
+      titleEl.href = url;
+      titleEl.target = "_blank";
+      titleEl.rel = "noopener noreferrer";
+    }
+    titleEl.className = "result-title";
+    titleEl.textContent = FMT(it.title, "Untitled Award");
+
+    const meta = document.createElement("div");
+    meta.className = "result-meta";
+    const deadlineTxt = `Deadline: ${DATE_FMT(it.deadline)}`;
+    const sponsorTxt  = FMT(it.sponsor, "—");
+    meta.textContent = `${deadlineTxt}  •  ${sponsorTxt}`;
+
+    const badges = document.createElement("div");
+    if (it.period) {
+      const b = document.createElement("span");
+      b.className="badge";
+      b.textContent = it.period;
+      badges.appendChild(b);
+    }
+    if (it.last_updated) {
+      const b2 = document.createElement("span");
+      b2.className="badge";
+      b2.textContent = `Updated ${it.last_updated}`;
+      badges.appendChild(b2);
+    }
+
+    card.appendChild(titleEl);
+    card.appendChild(meta);
+    card.appendChild(badges);
+
+    if (!url) {
+      const tools = document.createElement("div");
+      tools.className = "url-tools";
+      const q = encodeURIComponent((it.title||"")+" "+(it.sponsor||""));
+      const google = document.createElement("a");
+      google.href = `https://www.google.com/search?q=${q}`;
+      google.target = "_blank"; google.rel = "noopener noreferrer";
+      google.className = "quick";
+      google.textContent = "Search web";
+
+      const inp = document.createElement("input");
+      inp.placeholder = "Paste official URL… (https://…)";
+      const btn = document.createElement("button");
+      btn.textContent = "Save link";
+      btn.addEventListener("click", ()=>{
+        const v = inp.value.trim();
+        if (!safeUrl(v)) { alert("Enter a valid http(s) URL"); return; }
+        saveOverride(key, v);
+        btn.textContent = "Saved ✓";
+        btn.disabled = true;
+      });
+      tools.appendChild(google);
+      tools.appendChild(inp);
+      tools.appendChild(btn);
+      card.appendChild(tools);
+    }
+
+    if (it.notes) {
+      const note = document.createElement("div");
+      note.style.marginTop = "6px";
+      note.textContent = it.notes;
+      card.appendChild(note);
+    }
+
+    wrap.appendChild(card);
+  });
+
+  box.appendChild(wrap);
+  box.scrollTop = box.scrollHeight;
+}
+
+function addBotMessage(html){
+  const box = document.querySelector("#msgs");
+  const div = document.createElement("div");
+  div.className = "msg bot";
+  div.innerHTML = html;
+  box.appendChild(div);
+}
+
+function renderWelcome(){
+  const tips = ["travel grant", "conference travel", "dissertation fellowship", "biology postdoc", "humanities fellowship"];
+  addBotMessage(`
+    <div><strong>Welcome to GRAPES Search+</strong></div>
+    <div class="small" style="margin-top:4px">Try a query or click a suggestion:</div>
+    <div style="margin-top:6px">
+      ${tips.map(t => `<button class="chip" data-q="${t}">${t}</button>`).join(" ")}
+    </div>
+    <div class="small" style="margin-top:6px">Tip: Press <kbd>Ctrl/⌘</kbd>+<kbd>Enter</kbd> to send.</div>
+  `);
+
+  // Click a chip → run the search
+  document.querySelector("#msgs").addEventListener("click", (e)=>{
+    const b = e.target.closest(".chip");
+    if(!b) return;
+    document.querySelector("#inp").value = b.dataset.q;
+    document.querySelector("#send").click();
+  }, { once:false });
+}
+
+// Call this ONCE after the data loads (don’t auto-run a search)
+loadData().then(renderWelcome).catch(()=> renderWelcome());
+async function loadData(){
+  const res = await fetch("grapes-data.enriched.json");
+  const data = await res.json();
+  DATA = data.map(mapRow);
+
+  const stamps = DATA.map(d=>d.last_updated).filter(Boolean);
+  let display = "—";
+  if (stamps.length){
+    const parsed = stamps.map(s=>({s, t: Date.parse(s)})).filter(x=>!isNaN(x.t)).sort((a,b)=>b.t-a.t);
+    display = parsed.length ? new Date(parsed[0].t).toLocaleDateString(undefined,{year:'numeric', month:'long', day:'numeric'}) : stamps[0];
+  }
+  $("#updated").textContent = display;
+
+
+}
+
+$("#send").addEventListener("click", ()=>{
+  const q = ($("#inp").value || "").trim();
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const results = words.length ? DATA.filter(it => keywordMatch(it, words)) : DATA.slice(0,30);
+  renderResults(results, q || "(all)");
+  $("#inp").value = "";
+});
+document.addEventListener("keydown", (e)=>{
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) $("#send").click();
+});
+
+loadData().catch(err=>{
+  console.error("Failed to load data", err);
+  $("#updated").textContent = "Load error";
+});
+</script>
+</body>
+</html>
