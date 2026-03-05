@@ -1,0 +1,781 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GRAPES Search+ — UCLA Funding Finder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --blue: #2774AE;
+  --blue-dark: #1c5a8a;
+  --blue-light: #e8f2fb;
+  --gold: #FFD100;
+  --gold-dark: #d4ac00;
+  --ink: #1a1a2e;
+  --muted: #6b7280;
+  --border: #e2e8f0;
+  --bg: #f0f4f8;
+  --white: #ffffff;
+  --urgent: #dc2626;
+  --soon: #d97706;
+  --ok: #16a34a;
+  --past: #9ca3af;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+/* ── Layout ── */
+.app {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 100vh;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 16px 32px;
+}
+
+/* ── Header ── */
+.header {
+  padding: 22px 0 14px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+.header-left h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--blue-dark);
+  line-height: 1.1;
+}
+.header-left h1 span { color: var(--gold-dark); }
+.header-left .subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.header-meta {
+  text-align: right;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.header-meta strong { color: var(--blue); }
+
+/* ── Card wrapper ── */
+.card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(39,116,174,.10);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Quick filter bar ── */
+.filter-bar {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: #fafcff;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.filter-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-right: 4px;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  background: var(--white);
+  color: var(--ink);
+  transition: all .15s;
+  user-select: none;
+}
+.pill:hover { border-color: var(--blue); color: var(--blue); }
+.pill.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+.pill .dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: currentColor; opacity: .6;
+}
+
+/* ── Chat messages ── */
+.msgs {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 400px;
+  scroll-behavior: smooth;
+}
+
+.bubble {
+  max-width: 100%;
+  padding: 12px 15px;
+  border-radius: 14px;
+  font-size: 15px;
+  line-height: 1.6;
+}
+.bubble.user {
+  align-self: flex-end;
+  background: var(--blue);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+  max-width: 75%;
+}
+.bubble.bot {
+  align-self: flex-start;
+  background: #f6f8fa;
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+  width: 100%;
+}
+
+/* ── Result cards ── */
+.results-header {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.results-header strong { color: var(--ink); font-size: 15px; }
+
+.result-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  transition: box-shadow .15s, border-color .15s;
+  position: relative;
+  overflow: hidden;
+}
+.result-card:hover { box-shadow: 0 4px 16px rgba(39,116,174,.12); border-color: #bcd6ee; }
+
+.deadline-bar {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+}
+.deadline-bar.urgent { background: var(--urgent); }
+.deadline-bar.soon   { background: var(--soon); }
+.deadline-bar.ok     { background: var(--ok); }
+.deadline-bar.past   { background: var(--past); }
+.deadline-bar.none   { background: var(--border); }
+
+.rc-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--ink);
+  padding-left: 8px;
+  text-decoration: none;
+  display: block;
+  line-height: 1.4;
+  margin-bottom: 5px;
+}
+.rc-title:hover { color: var(--blue); text-decoration: underline; }
+a.rc-title { color: var(--blue-dark); }
+
+.rc-meta {
+  padding-left: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.rc-deadline { font-weight: 600; }
+.rc-deadline.urgent { color: var(--urgent); }
+.rc-deadline.soon   { color: var(--soon); }
+.rc-deadline.ok     { color: var(--ok); }
+.rc-deadline.past   { color: var(--past); }
+
+.tag {
+  display: inline-block;
+  background: var(--blue-light);
+  color: var(--blue-dark);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.tag.gold { background: #fff8cc; color: #7a5c00; }
+
+.rc-notes {
+  padding-left: 8px;
+  font-size: 13px;
+  color: #4b5563;
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+.url-row {
+  padding-left: 8px;
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.url-row a, .url-row button {
+  font-size: 13px;
+  color: var(--blue);
+  background: none;
+  border: 1px solid #bcd6ee;
+  border-radius: 7px;
+  padding: 4px 10px;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: 'DM Sans', sans-serif;
+}
+.url-row a:hover, .url-row button:hover { background: var(--blue-light); }
+.url-row input {
+  flex: 1; min-width: 220px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 5px 9px;
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+}
+.url-row input:focus { outline: none; border-color: var(--blue); }
+
+/* ── Welcome chips ── */
+.welcome-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.chip {
+  border: 1.5px solid #bcd6ee;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  background: var(--white);
+  color: var(--blue-dark);
+  transition: all .15s;
+}
+.chip:hover { background: var(--blue); color: #fff; border-color: var(--blue); }
+
+/* ── Typing indicator ── */
+.typing { display: flex; gap: 5px; align-items: center; padding: 14px 16px; }
+.typing span {
+  width: 8px; height: 8px; background: var(--blue);
+  border-radius: 50%; opacity: .4;
+  animation: bounce 1.2s infinite;
+}
+.typing span:nth-child(2) { animation-delay: .2s; }
+.typing span:nth-child(3) { animation-delay: .4s; }
+@keyframes bounce {
+  0%,80%,100% { transform: translateY(0); opacity:.4 }
+  40% { transform: translateY(-6px); opacity:1 }
+}
+
+/* ── Input bar ── */
+.input-bar {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: #fafcff;
+  align-items: flex-end;
+}
+.input-bar textarea {
+  flex: 1;
+  resize: none;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font: 15px/1.5 'DM Sans', sans-serif;
+  min-height: 46px;
+  max-height: 140px;
+  background: var(--white);
+  color: var(--ink);
+  transition: border-color .15s;
+}
+.input-bar textarea:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(39,116,174,.12);
+}
+.send-btn {
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 20px;
+  font: 600 15px 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: background .15s;
+  white-space: nowrap;
+}
+.send-btn:hover { background: var(--blue-dark); }
+.send-btn:disabled { background: var(--muted); cursor: not-allowed; }
+
+/* ── Footer ── */
+.footer {
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 12px 0 0;
+}
+
+/* ── Scrollbar ── */
+.msgs::-webkit-scrollbar { width: 6px; }
+.msgs::-webkit-scrollbar-track { background: transparent; }
+.msgs::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+
+/* ── Loading skeleton ── */
+.skeleton {
+  height: 100px; border-radius: 12px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e8f0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  margin-bottom: 10px;
+}
+@keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <h1>GRAPES Search<span>+</span></h1>
+      <div class="subtitle">UCLA Graduate Funding Database — AI-Powered</div>
+    </div>
+    <div class="header-meta">
+      <div>Data updated: <strong id="updated">loading…</strong></div>
+      <div id="record-count" style="opacity:.7"></div>
+    </div>
+  </div>
+
+  <!-- Main card -->
+  <div class="card">
+    <!-- Quick filter pills -->
+    <div class="filter-bar">
+      <span class="filter-label">Filter:</span>
+      <button class="pill active" data-filter="all">All</button>
+      <button class="pill" data-filter="upcoming"><span class="dot"></span> Upcoming</button>
+      <button class="pill" data-filter="soon"><span class="dot"></span> Due Soon (60 days)</button>
+      <button class="pill" data-filter="urgent"><span class="dot"></span> Urgent (30 days)</button>
+    </div>
+
+    <!-- Messages -->
+    <div id="msgs" class="msgs"></div>
+
+    <!-- Input -->
+    <div class="input-bar">
+      <textarea id="inp" placeholder="e.g. I'm a 3rd-year PhD in cognitive psych looking for travel or conference funding this spring…" rows="1"></textarea>
+      <button id="send" class="send-btn">Send ↑</button>
+    </div>
+  </div>
+
+  <div class="footer">
+    Results are summaries — verify details on the official page. &nbsp;·&nbsp; Created by Daylor Williams
+  </div>
+</div>
+
+<script>
+/* ─── Storage helpers ─── */
+const STORAGE_KEY = "grapes_url_v2";
+function loadOverrides(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}"); }catch(e){ return {}; } }
+function saveOverride(key, url){ const v=loadOverrides(); v[key]=url; localStorage.setItem(STORAGE_KEY, JSON.stringify(v)); }
+function stableKey(item){ return item.id ? "id:"+item.id : "t:"+btoa(unescape(encodeURIComponent((item.title||"")+"||"+(item.sponsor||"")))).slice(0,32); }
+function safeUrl(u){ try{ const x=new URL(u); return x.protocol==="http:"||x.protocol==="https:"; }catch(e){ return false; } }
+
+/* ─── Date helpers ─── */
+function toISO(d){
+  if(!d) return null;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(String(d))) return d;
+  const dt=new Date(d); if(isNaN(dt.getTime())) return null;
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+}
+function fmtDate(iso){
+  if(!iso) return "—";
+  const d=new Date(iso+"T12:00:00");
+  if(isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"});
+}
+function daysUntil(iso){
+  if(!iso) return null;
+  const now=new Date(); now.setHours(0,0,0,0);
+  const dl=new Date(iso+"T12:00:00");
+  return Math.round((dl-now)/(1000*60*60*24));
+}
+function deadlineClass(days){
+  if(days===null) return "none";
+  if(days<0) return "past";
+  if(days<=30) return "urgent";
+  if(days<=60) return "soon";
+  return "ok";
+}
+function daysLabel(days){
+  if(days===null) return "";
+  if(days<0) return `(${Math.abs(days)}d ago)`;
+  if(days===0) return "(today!)";
+  if(days===1) return "(tomorrow!)";
+  return `(${days} days)`;
+}
+
+/* ─── Data mapping ─── */
+function val(obj, keys){
+  for(const k of keys){
+    if(obj[k]!=null&&String(obj[k]).trim()!=="") return String(obj[k]).trim();
+    const f=Object.keys(obj).find(x=>x.toLowerCase()===k.toLowerCase());
+    if(f&&obj[f]!=null&&String(obj[f]).trim()!=="") return String(obj[f]).trim();
+  }
+  return null;
+}
+function mapRow(row){
+  const sponsor = [val(row,["Agency 1"]),val(row,["Agency 2"])].filter(Boolean).join(" • ")||null;
+  return {
+    id:        val(row,["Record Number","ID"]),
+    title:     val(row,["Award Title","Title"]),
+    sponsor,
+    deadline:  toISO(val(row,["DEADLINE","Deadline","Due Date"])),
+    url:       val(row,["URL","Web URL","Link","Website"]),
+    notes:     val(row,["Notes","Description","Overview"]),
+    last_updated: val(row,["last_updated","Last Updated","Updated"]),
+    period:    val(row,["APPLICATION PERIOD","Application Period","Cycle"]),
+  };
+}
+
+/* ─── App state ─── */
+let DATA = [];
+let activeFilter = "all";
+
+/* ─── DOM refs ─── */
+const msgs  = document.getElementById("msgs");
+const inp   = document.getElementById("inp");
+const send  = document.getElementById("send");
+
+/* ─── Load data ─── */
+async function loadData(){
+  const res = await fetch("grapes-data.enriched.json");
+  const raw = await res.json();
+  DATA = raw.map(mapRow);
+
+  document.getElementById("record-count").textContent = DATA.length+" records";
+
+  // Latest update stamp
+  const stamps = DATA.map(d=>d.last_updated).filter(Boolean);
+  if(stamps.length){
+    const parsed = stamps.map(s=>({s,t:Date.parse(s)})).filter(x=>!isNaN(x.t)).sort((a,b)=>b.t-a.t);
+    document.getElementById("updated").textContent = parsed.length
+      ? new Date(parsed[0].t).toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})
+      : stamps[0];
+  } else {
+    document.getElementById("updated").textContent = "—";
+  }
+}
+
+/* ─── Filtering ─── */
+function applyFilter(items){
+  if(activeFilter==="all") return items;
+  return items.filter(it=>{
+    const days = daysUntil(it.deadline);
+    if(activeFilter==="upcoming") return days===null||days>=0;
+    if(activeFilter==="soon")     return days!==null&&days>=0&&days<=60;
+    if(activeFilter==="urgent")   return days!==null&&days>=0&&days<=30;
+    return true;
+  });
+}
+
+/* ─── Keyword search ─── */
+function keywordSearch(items, words){
+  if(!words.length) return items;
+  return items.filter(it=>{
+    const hay=[it.title||"",it.sponsor||"",it.notes||"",it.period||""].join(" ").toLowerCase();
+    return words.every(w=>hay.includes(w));
+  });
+}
+
+/* ─── Sort by deadline ─── */
+function sortByDeadline(items){
+  return [...items].sort((a,b)=>{
+    const da=daysUntil(a.deadline), db=daysUntil(b.deadline);
+    if(da===null&&db===null) return 0;
+    if(da===null) return 1;
+    if(db===null) return -1;
+    if(da<0&&db>=0) return 1;
+    if(db<0&&da>=0) return -1;
+    return da-db;
+  });
+}
+
+/* ─── Claude AI search ─── */
+async function aiSearch(query){
+  // Ask Claude to extract search terms and filter intent
+  const systemPrompt = `You help students search a graduate funding database (GRAPES at UCLA).
+Given a natural language query, return a JSON object with:
+- "keywords": array of 2-6 relevant search terms (lowercase), including synonyms
+- "intent": one sentence describing what the student needs
+- "tip": a short (1-sentence) tip for finding more results
+
+The database contains fellowships, grants, travel awards, dissertation funding, conference funding, etc.
+Return ONLY valid JSON, no markdown, no explanation.`;
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 300,
+        system: systemPrompt,
+        messages: [{ role: "user", content: query }]
+      })
+    });
+    const data = await res.json();
+    const text = data.content?.find(c=>c.type==="text")?.text || "{}";
+    return JSON.parse(text.replace(/```json|```/g,"").trim());
+  } catch(e) {
+    // fallback: just split words
+    return { keywords: query.toLowerCase().split(/\s+/).filter(w=>w.length>2), intent: null, tip: null };
+  }
+}
+
+/* ─── Render result card ─── */
+function renderCard(it){
+  const overrides = loadOverrides();
+  const key = stableKey(it);
+  const url = overrides[key] || it.url || null;
+  const days = daysUntil(it.deadline);
+  const dlClass = deadlineClass(days);
+
+  const card = document.createElement("div");
+  card.className = "result-card";
+
+  // Color bar
+  const bar = document.createElement("div");
+  bar.className = `deadline-bar ${dlClass}`;
+  card.appendChild(bar);
+
+  // Title
+  const titleEl = url ? document.createElement("a") : document.createElement("div");
+  titleEl.className = "rc-title";
+  titleEl.textContent = it.title || "Untitled Award";
+  if(url){ titleEl.href=url; titleEl.target="_blank"; titleEl.rel="noopener noreferrer"; }
+  card.appendChild(titleEl);
+
+  // Meta row
+  const meta = document.createElement("div");
+  meta.className = "rc-meta";
+
+  const dl = document.createElement("span");
+  dl.className = `rc-deadline ${dlClass}`;
+  dl.textContent = `📅 ${fmtDate(it.deadline)} ${daysLabel(days)}`;
+  meta.appendChild(dl);
+
+  if(it.sponsor){
+    const sp = document.createElement("span");
+    sp.textContent = it.sponsor;
+    meta.appendChild(sp);
+  }
+  card.appendChild(meta);
+
+  // Tags
+  const tagRow = document.createElement("div");
+  tagRow.style.paddingLeft = "8px";
+  tagRow.style.marginBottom = "4px";
+  if(it.period){ const t=document.createElement("span"); t.className="tag"; t.textContent=it.period; tagRow.appendChild(t); }
+  if(it.id){ const t=document.createElement("span"); t.className="tag gold"; t.textContent="#"+it.id; tagRow.appendChild(t); }
+  if(tagRow.children.length) card.appendChild(tagRow);
+
+  // Notes
+  if(it.notes){
+    const n=document.createElement("div"); n.className="rc-notes";
+    n.textContent = it.notes.length>220 ? it.notes.slice(0,220)+"…" : it.notes;
+    card.appendChild(n);
+  }
+
+  // URL tools if no link
+  if(!url){
+    const q = encodeURIComponent((it.title||"")+" "+(it.sponsor||"")+" grant funding");
+    const row = document.createElement("div"); row.className="url-row";
+
+    const ga = document.createElement("a");
+    ga.href = `https://www.google.com/search?q=${q}`;
+    ga.target="_blank"; ga.rel="noopener noreferrer";
+    ga.textContent = "🔍 Search web";
+    row.appendChild(ga);
+
+    const pinp = document.createElement("input");
+    pinp.placeholder = "Paste official URL (https://…)";
+    const pbtn = document.createElement("button");
+    pbtn.textContent = "Save link";
+    pbtn.addEventListener("click", ()=>{
+      const v=pinp.value.trim();
+      if(!safeUrl(v)){ alert("Enter a valid https:// URL"); return; }
+      saveOverride(key, v);
+      pbtn.textContent="Saved ✓"; pbtn.disabled=true;
+    });
+    row.appendChild(pinp); row.appendChild(pbtn);
+    card.appendChild(row);
+  }
+
+  return card;
+}
+
+/* ─── Render results into chat ─── */
+function renderResults(items, query, aiMeta){
+  // User bubble
+  const ub = document.createElement("div");
+  ub.className="bubble user";
+  ub.textContent = query;
+  msgs.appendChild(ub);
+
+  // Bot bubble
+  const bb = document.createElement("div");
+  bb.className="bubble bot";
+
+  const filtered = applyFilter(sortByDeadline(items));
+
+  if(aiMeta?.intent){
+    const intent = document.createElement("div");
+    intent.style.cssText = "font-size:14px;color:#374151;margin-bottom:10px;";
+    intent.innerHTML = `<strong>Looking for:</strong> ${aiMeta.intent}`;
+    bb.appendChild(intent);
+  }
+
+  const hdr = document.createElement("div");
+  hdr.className="results-header";
+  hdr.innerHTML = `<strong>${filtered.length}</strong> result${filtered.length===1?"":"s"}${items.length!==filtered.length?" ("+items.length+" total, filtered by deadline)":""}`;
+  bb.appendChild(hdr);
+
+  if(filtered.length===0){
+    const none=document.createElement("div");
+    none.style.cssText="text-align:center;padding:24px;color:#9ca3af;font-size:14px;";
+    none.innerHTML="No results found. Try broader terms or change the deadline filter.";
+    bb.appendChild(none);
+  } else {
+    filtered.slice(0,60).forEach(it => bb.appendChild(renderCard(it)));
+  }
+
+  if(aiMeta?.tip){
+    const tip=document.createElement("div");
+    tip.style.cssText="font-size:12px;color:#6b7280;margin-top:6px;padding:8px;background:#f9fafb;border-radius:8px;";
+    tip.textContent="💡 "+aiMeta.tip;
+    bb.appendChild(tip);
+  }
+
+  msgs.appendChild(bb);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+/* ─── Welcome message ─── */
+function renderWelcome(){
+  const bb = document.createElement("div");
+  bb.className="bubble bot";
+  bb.innerHTML = `
+    <div style="font-size:16px;font-weight:600;margin-bottom:6px">👋 Welcome to GRAPES Search+</div>
+    <div style="font-size:14px;color:#374151;margin-bottom:12px">
+      Describe what you're looking for in plain English — your field, career stage, type of funding, and timeline. I'll find the best matches in UCLA's GRAPES database.
+    </div>
+    <div style="font-size:13px;color:#6b7280;margin-bottom:8px">Try a suggestion:</div>
+    <div class="welcome-chips">
+      <button class="chip" data-q="travel grant conference">✈️ Travel / Conference</button>
+      <button class="chip" data-q="dissertation fellowship">📝 Dissertation Fellowship</button>
+      <button class="chip" data-q="biology postdoc">🔬 Biology / Sciences</button>
+      <button class="chip" data-q="humanities fellowship writing">📚 Humanities</button>
+      <button class="chip" data-q="international student funding">🌍 International Student</button>
+      <button class="chip" data-q="summer research">☀️ Summer Research</button>
+    </div>
+    <div style="font-size:12px;color:#9ca3af;margin-top:10px">Tip: Press <kbd style="background:#e5e7eb;padding:1px 5px;border-radius:4px">⌘ Enter</kbd> to send</div>
+  `;
+  msgs.appendChild(bb);
+}
+
+/* ─── Typing indicator ─── */
+function showTyping(){
+  const t=document.createElement("div"); t.className="bubble bot"; t.id="typing";
+  t.innerHTML=`<div class="typing"><span></span><span></span><span></span></div>`;
+  msgs.appendChild(t); msgs.scrollTop=msgs.scrollHeight;
+  return t;
+}
+function hideTyping(){ document.getElementById("typing")?.remove(); }
+
+/* ─── Filter pills ─── */
+document.querySelectorAll(".pill[data-filter]").forEach(pill=>{
+  pill.addEventListener("click",()=>{
+    document.querySelectorAll(".pill[data-filter]").forEach(p=>p.classList.remove("active"));
+    pill.classList.add("active");
+    activeFilter = pill.dataset.filter;
+  });
+});
+
+/* ─── Chip clicks ─── */
+msgs.addEventListener("click", e=>{
+  const chip = e.target.closest(".chip");
+  if(!chip) return;
+  inp.value = chip.dataset.q;
+  send.click();
+});
+
+/* ─── Send ─── */
+async function handleSend(){
+  const q = inp.value.trim();
+  if(!q || !DATA.length) return;
+  inp.value="";
+  inp.style.height="";
+  send.disabled=true;
+
+  const typing = showTyping();
+
+  let aiMeta = null;
+  let results = DATA;
+
+  // Use AI to parse natural language query
+  aiMeta = await aiSearch(q);
+  const words = aiMeta?.keywords?.length ? aiMeta.keywords : q.toLowerCase().split(/\s+/).filter(w=>w.length>2);
+  results = keywordSearch(DATA, words);
+
+  hideTyping();
+  renderResults(results, q, aiMeta);
+  send.disabled=false;
+}
+
+send.addEventListener("click", handleSend);
+inp.addEventListener("keydown", e=>{ if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)){ e.preventDefault(); handleSend(); } });
+
+// Auto-resize textarea
+inp.addEventListener("input", ()=>{
+  inp.style.height=""; inp.style.height=Math.min(inp.scrollHeight, 140)+"px";
+});
+
+/* ─── Init ─── */
+loadData()
+  .then(renderWelcome)
+  .catch(err=>{ console.error(err); renderWelcome(); document.getElementById("updated").textContent="Load error"; });
+
+</script>
+</body>
+</html>
